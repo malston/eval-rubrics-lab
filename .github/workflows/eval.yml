@@ -1,0 +1,39 @@
+name: Rubric eval
+
+on:
+  pull_request:
+    paths:
+      - "rubrics/**"
+      - "harness/**"
+      - "data/**"
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+
+  judge-check:
+    runs-on: ubuntu-latest
+    needs: offline-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run the judge and check agreement with the answer key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m harness.ci_check --rubric rubrics/v2_analytic.md --min-kappa 0.7
+      - name: Keep the judge output for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-judge-scores
+          path: results/ci_judge.csv
